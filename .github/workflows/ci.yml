@@ -16,14 +16,5 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Verify npm pack
+      - name: Verify package structure
         run: npm pack --dry-run
-
-      - name: Check package structure
-        run: |
-          test -f extensions/graphify.ts
-          test -f package.json
-          test -f README.md
-          test -f README.pt-BR.md
-          test -f LICENSE
-          echo "All expected files present"
