@@ -1,0 +1,44 @@
+{
+  "name": "@runecraft/graphify-pi",
+  "version": "0.1.0",
+  "description": "Minimal Pi extension for graphify knowledge graphs — lazy tools, git-based staleness, bounded exec, zero config.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/runecraftai/graphify-pi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/runecraftai/graphify-pi/issues"
+  },
+  "homepage": "https://github.com/runecraftai/graphify-pi#readme",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "graphify",
+    "knowledge-graph",
+    "codebase-navigation",
+    "token-reduction"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "extensions",
+    "README.md",
+    "README.pt-BR.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.69.0",
+    "typebox": "*"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
