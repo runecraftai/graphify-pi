@@ -48,7 +48,7 @@
   <rect x="162" y="175" width="120" height="28" rx="14" fill="#1f6feb" opacity="0.9"/>
   <text x="222" y="194" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" text-anchor="middle">pi-extension</text>
   <rect x="294" y="175" width="140" height="28" rx="14" fill="#30363d" opacity="0.9"/>
-  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">~190 lines</text>
+  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">~230 lines</text>
   <!-- stat callout -->
   <rect x="60" y="220" width="260" height="36" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <text x="76" y="244" fill="#3fb950" font-family="SFMono-Regular,Consolas,Liberation Mono,Menlo,monospace" font-size="15" font-weight="600">83.2%</text>
@@ -76,7 +76,7 @@
 
 ## Why minimal
 
-This extension is deliberately small (~190 lines). Every design choice reduces footprint:
+This extension is deliberately small (~230 lines). Every design choice reduces footprint:
 
 - **Lazy registration** — tools only appear when `graphify-out/graph.json` exists, keeping the system prompt clean for repos without a graph.
 - **Git-based staleness** — `git rev-list --count HEAD --since=<graph-mtime>` checks drift in ~8ms. No file walks, no extra state files.
@@ -127,7 +127,7 @@ Measured on the Squad codebase (~25K nodes):
 |--------|-------|
 | Median token reduction | **83.2%** |
 | Staleness check latency | **8.3 ms** |
-| Accuracy (3 benchmark tasks) | **3/3 on 2 of 3 tasks** |
+| Accuracy (3 benchmark tasks) | **3/3 on 2 of 3 tasks** (100% on two tasks, partial on the third) |
 
 ## License
 

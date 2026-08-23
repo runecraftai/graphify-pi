@@ -43,7 +43,7 @@
   <rect x="162" y="175" width="120" height="28" rx="14" fill="#1f6feb" opacity="0.9"/>
   <text x="222" y="194" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" text-anchor="middle">pi-extension</text>
   <rect x="294" y="175" width="140" height="28" rx="14" fill="#30363d" opacity="0.9"/>
-  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">~190 linhas</text>
+  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">~230 linhas</text>
   <!-- stat -->
   <rect x="60" y="220" width="260" height="36" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <text x="76" y="244" fill="#3fb950" font-family="SFMono-Regular,Consolas,Liberation Mono,Menlo,monospace" font-size="15" font-weight="600">83,2%</text>
@@ -71,7 +71,7 @@
 
 ## Por que minimal
 
-Esta extensão é deliberadamente pequena (~190 linhas). Cada escolha de design reduz a pegada:
+Esta extensão é deliberadamente pequena (~230 linhas). Cada escolha de design reduz a pegada:
 
 - **Registro preguiçoso** — as ferramentas só aparecem quando `graphify-out/graph.json` existe, mantendo o prompt do sistema limpo para repositórios sem grafo.
 - **Obsolescência via Git** — `git rev-list --count HEAD --since=<graph-mtime>` verifica o desvio em ~8ms. Sem caminhadas de arquivos, sem arquivos de estado extras.
@@ -122,7 +122,7 @@ Medido no codebase do Squad (~25K nós):
 |---------|-------|
 | Redução mediana de tokens | **83,2%** |
 | Latência da verificação de obsolescência | **8,3 ms** |
-| Precisão (3 tarefas de benchmark) | **3/3 em 2 de 3 tarefas** |
+| Precisão (3 tarefas de benchmark) | **3/3 em 2 de 3 tarefas** (100% em duas tarefas, parcial na terceira) |
 
 ## Licença
 

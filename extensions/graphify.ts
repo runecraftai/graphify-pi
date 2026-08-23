@@ -11,7 +11,7 @@
 import { execFileSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionAPI } from "@anthropic-ai/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 
 const CLI_TIMEOUT_MS = 60_000;
