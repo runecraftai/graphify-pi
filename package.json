@@ -35,7 +35,7 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": ">=0.69.0",
+    "@anthropic-ai/pi-coding-agent": ">=0.69.0",
     "typebox": "*"
   },
   "publishConfig": {
