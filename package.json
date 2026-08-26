@@ -1,7 +1,7 @@
 {
   "name": "@runecraft/graphify-pi",
   "version": "0.1.0",
-  "description": "Minimal Pi extension for graphify knowledge graphs — lazy tools, git-based staleness, bounded exec, zero config.",
+  "description": "Minimal Pi extension for graphify knowledge graphs — graph-first tools, diagnostics, upstream Git hooks, bounded exec, zero config.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -40,6 +40,11 @@
   },
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "npm run build && node --test dist/tests/*.test.js"
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
