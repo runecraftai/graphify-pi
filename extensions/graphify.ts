@@ -207,10 +207,14 @@ export function isGitRepository(
 export function hooksNeedInstall(statusOutput: string): boolean {
 	const installed = new Set<string>();
 	for (const line of statusOutput.split(/\r?\n/)) {
-		const match = /^(post-commit|post-checkout):\s+installed\s*$/.exec(line.trim());
-		if (match) installed.add(match[1]);
+		const trimmed = line.trim();
+		const hook = /^(post-commit|post-checkout):\s+installed\s*$/.exec(trimmed);
+		if (hook) installed.add(hook[1]);
+		if (/^merge driver:\s+registered\s*$/.test(trimmed)) {
+			installed.add("merge-driver");
+		}
 	}
-	return installed.size !== 2;
+	return installed.size !== 3;
 }
 
 export interface HookReconciliation {
