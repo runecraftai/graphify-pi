@@ -252,6 +252,25 @@ export function reconcileGitHooks(
 			error: formatCommandResult(install, `${bin} hook install`),
 		};
 	}
+
+	const verification = runner(bin, ["hook", "status"], cwd);
+	if (verification.code !== 0) {
+		return {
+			attempted: true,
+			installed: false,
+			error: formatCommandResult(verification, `${bin} hook status`),
+		};
+	}
+	if (hooksNeedInstall(verification.stdout)) {
+		return {
+			attempted: true,
+			installed: false,
+			error: `graphify hook install incomplete: ${formatCommandResult(
+				verification,
+				`${bin} hook status`,
+			)}`,
+		};
+	}
 	return { attempted: true, installed: true };
 }
 

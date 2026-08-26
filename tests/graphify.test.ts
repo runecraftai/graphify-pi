@@ -72,11 +72,17 @@ test("hook reconciliation is idempotent when upstream reports both hooks", () =>
 
 test("hook reconciliation installs when the merge driver is missing", () => {
 	const calls: string[][] = [];
+	let statusCalls = 0;
 	const result = reconcileGitHooks("/project", "graphify", (command, args) => {
 		calls.push([command, ...args]);
 		if (command === "git") return success("true\n");
 		if (args[1] === "status") {
-			return success("post-commit: installed\npost-checkout: installed\n");
+			statusCalls += 1;
+			return statusCalls === 1
+				? success("post-commit: installed\npost-checkout: installed\n")
+				: success(
+						"post-commit: installed\npost-checkout: installed\nmerge driver: registered\n",
+					);
 		}
 		return success("merge driver: registered\n");
 	});
@@ -86,15 +92,24 @@ test("hook reconciliation installs when the merge driver is missing", () => {
 		["git", "rev-parse", "--is-inside-work-tree"],
 		["graphify", "hook", "status"],
 		["graphify", "hook", "install"],
+		["graphify", "hook", "status"],
 	]);
 });
 
 test("hook reconciliation delegates installation only when upstream reports a gap", () => {
 	const calls: string[][] = [];
+	let statusCalls = 0;
 	const result = reconcileGitHooks("/project", "graphify", (command, args) => {
 		calls.push([command, ...args]);
 		if (command === "git") return success("true\n");
-		if (args[1] === "status") return success("post-commit: installed\npost-checkout: not installed\n");
+		if (args[1] === "status") {
+			statusCalls += 1;
+			return statusCalls === 1
+				? success("post-commit: installed\npost-checkout: not installed\n")
+				: success(
+						"post-commit: installed\npost-checkout: installed\nmerge driver: registered\n",
+					);
+		}
 		return success("post-commit: already installed\npost-checkout: installed\n");
 	});
 
@@ -103,6 +118,7 @@ test("hook reconciliation delegates installation only when upstream reports a ga
 		["git", "rev-parse", "--is-inside-work-tree"],
 		["graphify", "hook", "status"],
 		["graphify", "hook", "install"],
+		["graphify", "hook", "status"],
 	]);
 	assert.equal(
 		hooksNeedInstall(
@@ -110,6 +126,28 @@ test("hook reconciliation delegates installation only when upstream reports a ga
 		),
 		false,
 	);
+});
+
+test("hook reconciliation reports partial installation after upstream succeeds", () => {
+	const calls: string[][] = [];
+	const result = reconcileGitHooks("/project", "graphify", (command, args) => {
+		calls.push([command, ...args]);
+		if (command === "git") return success("true\n");
+		if (args[1] === "status") {
+			return success("post-commit: installed\npost-checkout: installed\n");
+		}
+		return success("merge driver: not registered (git config failed)\n");
+	});
+
+	assert.equal(result.attempted, true);
+	assert.equal(result.installed, false);
+	assert.match(result.error ?? "", /hook install incomplete/);
+	assert.deepEqual(calls, [
+		["git", "rev-parse", "--is-inside-work-tree"],
+		["graphify", "hook", "status"],
+		["graphify", "hook", "install"],
+		["graphify", "hook", "status"],
+	]);
 });
 
 test("CLI failure output stays within the configured byte bound", () => {
