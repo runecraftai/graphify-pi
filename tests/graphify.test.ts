@@ -59,7 +59,7 @@ test("hook reconciliation is idempotent when upstream reports both hooks", () =>
 		calls.push([command, ...args]);
 		if (command === "git") return success("true\n");
 		return success(
-			"post-commit: installed\npost-checkout: installed\nmerge driver: registered\n",
+			"post-commit: installed at .git/hooks/post-commit\npost-checkout: installed at .git/hooks/post-checkout\nmerge driver: registered (graphify-out/graph.json merge=graphify)\n",
 		);
 	});
 

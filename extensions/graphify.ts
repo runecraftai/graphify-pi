@@ -208,9 +208,9 @@ export function hooksNeedInstall(statusOutput: string): boolean {
 	const installed = new Set<string>();
 	for (const line of statusOutput.split(/\r?\n/)) {
 		const trimmed = line.trim();
-		const hook = /^(post-commit|post-checkout):\s+installed\s*$/.exec(trimmed);
+		const hook = /^(post-commit|post-checkout):\s+installed(?:\s.*)?$/.exec(trimmed);
 		if (hook) installed.add(hook[1]);
-		if (/^merge driver:\s+registered\s*$/.test(trimmed)) {
+		if (/^merge driver:\s+registered(?:\s.*)?$/.test(trimmed)) {
 			installed.add("merge-driver");
 		}
 	}
