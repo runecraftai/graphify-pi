@@ -48,7 +48,7 @@
   <rect x="162" y="175" width="120" height="28" rx="14" fill="#1f6feb" opacity="0.9"/>
   <text x="222" y="194" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" text-anchor="middle">pi-extension</text>
   <rect x="294" y="175" width="140" height="28" rx="14" fill="#30363d" opacity="0.9"/>
-  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">~230 lines</text>
+  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">single-file</text>
   <!-- stat callout -->
   <rect x="60" y="220" width="260" height="36" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <text x="76" y="244" fill="#3fb950" font-family="SFMono-Regular,Consolas,Liberation Mono,Menlo,monospace" font-size="15" font-weight="600">83.2%</text>
@@ -59,26 +59,37 @@
 
 <br>
 
-> Query your codebase's knowledge graph from inside Pi — four tools, zero config, 83% fewer tokens.
+> Query and maintain your codebase's knowledge graph from inside Pi — six tools, zero config, 83% fewer tokens.
 
 ---
 
 ## What it does
 
-`@runecraft/graphify-pi` wraps the [graphify](https://github.com/graphify/graphify) CLI as a Pi extension. It registers four tools that let your coding agent query, traverse, and explain a codebase knowledge graph instead of grepping raw files.
+`@runecraft/graphify-pi` wraps the upstream [Graphify-Labs graphify](https://github.com/Graphify-Labs/graphify) CLI as a Pi extension. It provides always-on tools for querying, building, updating, and diagnosing a codebase knowledge graph instead of grepping raw files.
 
 | Tool | What it does |
 |------|-------------|
+| `graphify_build` | Runs the upstream `graphify .` build flow (or a supplied project path) |
+| `graphify_status` | Reports graph presence, CLI availability/version, and Git-based staleness |
 | `graphify_query` | BFS subgraph around concepts matching a natural-language question |
 | `graphify_path` | Shortest path between two nodes (fuzzy match) |
 | `graphify_explain` | Plain-language explanation of one node and its neighbors |
 | `graphify_update` | Incrementally re-extract changed files (AST-only, no LLM cost) |
 
+### Complementary Pi integrations
+
+`graphify-pi` is not the upstream installer and does not modify Graphify-Labs' `graphify pi install` command. The two integrations are complementary:
+
+- **graphify-pi** is the Pi-native extension: it exposes these tools, adds graph-first lifecycle guidance, reports staleness, and reconciles Git integration.
+- **Upstream `graphify pi install`** (also documented upstream as `graphify install --platform pi`) installs the full graphify skill and project prompt integration. It writes the global `~/.pi/agent/skills/graphify/SKILL.md` and its `references/` files, the project `.pi/prompts/graphify.md`, and a graphify section in `AGENTS.md`.
+
+Install the upstream integration separately when you want the complete skill/pipeline guidance. `graphify-pi` remains the installation surface for the Pi extension itself.
+
 ## Why minimal
 
-This extension is deliberately small (~230 lines). Every design choice reduces footprint:
+This extension stays deliberately small and delegates graph and Git behavior upstream. Every design choice reduces footprint:
 
-- **Lazy registration** — tools only appear when `graphify-out/graph.json` exists, keeping the system prompt clean for repos without a graph.
+- **Graph-aware registration** — build and status are available for setup and diagnosis; query/path/explain/update are registered only when `graphify-out/graph.json` exists, keeping graph guidance out of repos without a graph.
 - **Git-based staleness** — `git rev-list --count HEAD --since=<graph-mtime>` checks drift in ~8ms. No file walks, no extra state files.
 - **Bounded exec** — stdout+stderr capped at 1 MiB (configurable) to prevent OOM on large graphs. Truncates at newline boundaries for clean output.
 - **Zero config** — env vars only. No settings files, no auth, no coordinator initialization.
@@ -89,11 +100,25 @@ This extension is deliberately small (~230 lines). Every design choice reduces f
 pi install npm:@runecraft/graphify-pi
 ```
 
+This installs only the Pi extension. It does not install the upstream Graphify CLI or run `graphify pi install`.
+
 ## Requirements
 
-- **[graphify](https://github.com/graphify/graphify)** CLI on `PATH` (or set `GRAPHIFY_BIN`)
+- **[graphify](https://github.com/Graphify-Labs/graphify)** CLI on `PATH` (or set `GRAPHIFY_BIN`). Install it with:
+  ```bash
+  uv tool install graphifyy
+  ```
 - **Node.js** ≥ 20
 - **Pi** with extension support
+
+First-time setup in a project:
+
+```bash
+graphify .             # or call graphify_build from Pi
+graphify hook status   # optional: inspect the upstream Git integration
+```
+
+When a graph exists, graphify-pi automatically reconciles that upstream Git integration at Pi session start. It never installs the CLI itself.
 
 ## Configuration
 
@@ -106,18 +131,39 @@ All configuration via environment variables — no config files:
 | `GRAPHIFY_STALE_COMMITS` | `1` | Commits newer than graph before staleness notification |
 | `GRAPHIFY_MAX_OUTPUT` | `1048576` (1 MiB) | Max bytes from CLI stdout+stderr before truncation |
 
-## How it works
+## Graph-first behavior and lifecycle
+
+When `graphify-out/graph.json` exists, the extension adds persistent Pi system guidance: for codebase and architecture questions, use `graphify_query`, `graphify_path`, or `graphify_explain` before `grep`, `find`, broad raw reads, or other file searches. Use the graph and `graphify-out/wiki/` before reading broad reports such as `GRAPH_REPORT.md`. After code edits, run `graphify_update` before relying on graph answers. If the graph cannot answer a focused question, inspect the smallest relevant source files.
+
+No graph-first guidance is injected when the graph is absent. `graphify_build` and `graphify_status` remain available so the agent can create or diagnose one.
 
 ```
 session_start
+  ├─ register graphify_build + graphify_status
   ├─ graphify-out/graph.json exists?
-  │   ├─ yes → register 4 tools + check staleness
-  │   └─ no  → silent no-op (zero footprint)
-  └─ staleness check: git rev-list --count HEAD --since=<mtime>
+  │   ├─ yes → register query/path/explain/update + guidance + check staleness
+  │   └─ no  → no graph guidance or graph tools
+  ├─ graph + CLI available + Git repo?
+  │   ├─ graphify hook status
+  │   └─ graphify hook install only when upstream status shows the integration is incomplete
+  └─ staleness: git rev-list --count HEAD --since=<mtime>
        └─ count > threshold → notify "graph is N commits stale"
 ```
 
-Tools shell out to the `graphify` CLI with a 60s timeout and bounded output capture. No extraction logic is reimplemented — every call delegates to the pinned binary.
+### Upstream Git integration
+
+The extension owns reconciliation for Pi sessions, but delegates all Git behavior to the upstream CLI. It checks `graphify hook status` and runs `graphify hook install` only when needed. This is idempotent and does not reimplement hook scripts, overwrite existing hook content, install the CLI, or bypass upstream handling of `core.hooksPath` and linked worktrees.
+
+The upstream command installs graphify's `post-commit` and `post-checkout` rebuild hooks and registers the `graph.json` merge driver. It preserves existing user hook content and writes to the Git hook/config locations selected by upstream. Inspect or remove the upstream integration with:
+
+```bash
+graphify hook status
+graphify hook uninstall
+```
+
+Because graphify-pi reconciles automatically, an uninstall is intentional only until the next Pi session with a graph and an available CLI. If setup fails, Pi reports the failure; if the CLI is missing it reports `graphify-pi requires graphify CLI. Install with: uv tool install graphifyy`.
+
+Tools shell out to the upstream `graphify` CLI with a 60s timeout and bounded output capture. No extraction or Git hook logic is reimplemented — every operation delegates to the CLI.
 
 ## Pilot results
 
