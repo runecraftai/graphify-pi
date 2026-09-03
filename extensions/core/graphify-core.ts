@@ -100,6 +100,19 @@ export function extractSuggestedQuestions(
 	return clip(body.join("\n"), maxChars);
 }
 
+function clipBytes(text: string, maxBytes: number): string | undefined {
+	if (!text || maxBytes <= 0) return undefined;
+	if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
+	if (maxBytes <= 3) return utf8Prefix("…", maxBytes);
+	return utf8Prefix(text, maxBytes - 3) + "…";
+}
+
+function neutralizeBoundaryTokens(text: string): string {
+	return text
+		.replaceAll("</graphify-reference report>", "[/graphify-reference report>")
+		.replaceAll("</graphify-reference wiki>", "[/graphify-reference wiki>");
+}
+
 function suggestedQuestionsEndOffset(report: string): number | undefined {
 	const lines = report.split(/\r?\n/);
 	const heading = lines.findIndex(
@@ -156,11 +169,15 @@ export function buildSessionInjection(
 					3,
 			),
 		);
-		const body = clip(report, bodyBudget);
+		const body = clipBytes(report, bodyBudget);
 		if (body) {
-			let block = header + body;
+			let block = header + neutralizeBoundaryTokens(body);
 			const suggestedEnd = suggestedQuestionsEndOffset(report);
-			if (suggestedEnd !== undefined && suggestedEnd > bodyBudget) {
+			const suggestedEndBytes =
+				suggestedEnd === undefined
+					? undefined
+					: Buffer.byteLength(report.slice(0, suggestedEnd), "utf8");
+			if (suggestedEndBytes !== undefined && suggestedEndBytes > bodyBudget) {
 				const questionsBudget = Math.max(
 					0,
 					Math.min(
@@ -172,8 +189,9 @@ export function buildSessionInjection(
 							3,
 					),
 				);
-				const questions = extractSuggestedQuestions(report, questionsBudget);
-				if (questions) block += `\nSuggested questions:\n${questions}`;
+				const extracted = extractSuggestedQuestions(report, 400);
+				const questions = extracted ? clipBytes(extracted, questionsBudget) : undefined;
+				if (questions) block += `\nSuggested questions:\n${neutralizeBoundaryTokens(questions)}`;
 			}
 			block += footer;
 			parts.push(block);
@@ -195,8 +213,8 @@ export function buildSessionInjection(
 					3,
 			),
 		);
-		const body = clip(wiki, bodyBudget);
-		if (body) parts.push(header + body + footer);
+		const body = clipBytes(wiki, bodyBudget);
+		if (body) parts.push(header + neutralizeBoundaryTokens(body) + footer);
 	}
 
 	const text = parts.join("\n\n");
