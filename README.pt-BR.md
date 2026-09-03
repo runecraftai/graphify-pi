@@ -64,9 +64,9 @@
 
 | Ferramenta | Função |
 |-----------|--------|
-| `graphify_build` | Executa o fluxo upstream `graphify .` (ou um caminho de projeto fornecido) |
+| `graphify_build` | Executa o fluxo upstream `graphify .` (ou um caminho de projeto fornecido); `mode` standard\|deep, `backend` semântico opcional |
 | `graphify_status` | Informa a presença do grafo, disponibilidade/versão da CLI e obsolescência via Git |
-| `graphify_query` | Subgrafo BFS ao redor de conceitos que correspondem a uma pergunta em linguagem natural |
+| `graphify_query` | Subgrafo ao redor de conceitos que correspondem a uma pergunta (BFS padrão, DFS para rastrear caminhos) com orientação de expansão de vocabulário |
 | `graphify_path` | Caminho mais curto entre dois nós (correspondência aproximada) |
 | `graphify_explain` | Explicação em linguagem natural de um nó e seus vizinhos |
 | `graphify_update` | Re-extração incremental de arquivos modificados (somente AST, sem custo de LLM) |
@@ -125,12 +125,15 @@ Toda configuração via variáveis de ambiente — sem arquivos de configuraçã
 | `GRAPHIFY_BUDGET` | `2000` | Limite padrão de tokens para resultados de `graphify_query` |
 | `GRAPHIFY_STALE_COMMITS` | `1` | Commits mais recentes que o grafo antes da notificação de obsolescência |
 | `GRAPHIFY_MAX_OUTPUT` | `1048576` (1 MiB) | Máximo de bytes do stdout+stderr da CLI antes do truncamento |
+| `GRAPHIFY_BACKEND` | não definido | Backend semântico padrão para `graphify_build` (gemini\|kimi\|claude\|openai\|deepseek\|ollama) |
 
 ## Comportamento graph-first e ciclo de vida
 
 Quando `graphify-out/graph.json` existe, a extensão adiciona orientação persistente ao prompt do Pi: para perguntas sobre código ou arquitetura, use `graphify_query`, `graphify_path` ou `graphify_explain` antes de `grep`, `find`, leituras brutas amplas ou outras buscas em arquivos. Use o grafo e `graphify-out/wiki/` antes de ler relatórios amplos como `GRAPH_REPORT.md`. Depois de editar código, execute `graphify_update` antes de confiar nas respostas do grafo. Se o grafo não responder a uma pergunta focada, leia os menores arquivos-fonte relevantes.
 
-Nenhuma orientação graph-first é injetada quando o grafo está ausente. `graphify_build` e `graphify_status` continuam disponíveis para criá-lo ou diagnosticá-lo.
+No início da sessão ela também injeta um recorte limitado (≤ 3000 chars, relatório primeiros 2000 + wiki primeiros 1000) de `graphify-out/GRAPH_REPORT.md` — incluindo a seção **Suggested Questions** quando o relatório tem uma — e `graphify-out/wiki/index.md` no prompt do sistema, para que o agente responda perguntas em linguagem natural sobre o código. A orientação da ferramenta `graphify_query` ensina o agente a expandir perguntas em linguagem natural para o vocabulário de tokens do próprio grafo (até 12 tokens retirados dos rótulos dos nós, nunca inventados) quando a correspondência lexical não encontra nós, e a recorrer ao `graphify_explain`/`graphify_path` com nomes em nível de símbolo.
+
+Nenhuma orientação graph-first é injetada quando o grafo está ausente. `graphify_build` e `graphify_status` continuam disponíveis para criá-lo ou diagnosticá-lo. Quando a CLI está presente mas é anterior à `0.9.53` (faltam correções de consulta de truncamento, localização `at=` e tratamento de verbos), o início da sessão mostra um aviso de upgrade de uma linha.
 
 ```
 session_start
@@ -138,6 +141,8 @@ session_start
   ├─ graphify-out/graph.json existe?
   │   ├─ sim → registra query/path/explain/update + orientação + verifica obsolescência
   │   └─ não → sem orientação ou ferramentas do grafo
+  ├─ before_agent_start → injeta recortes do GRAPH_REPORT.md + wiki (≤ 3000 chars)
+  ├─ versão da CLI abaixo de 0.9.53? → aviso de upgrade de uma linha
   ├─ grafo + CLI disponível + repositório Git?
   │   ├─ graphify hook status
   │   └─ graphify hook install somente quando o status upstream indica integração incompleta

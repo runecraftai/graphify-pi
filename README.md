@@ -69,9 +69,9 @@
 
 | Tool | What it does |
 |------|-------------|
-| `graphify_build` | Runs the upstream `graphify .` build flow (or a supplied project path) |
+| `graphify_build` | Runs the upstream `graphify .` build flow (or a supplied project path); `mode` standard\|deep, optional semantic `backend` |
 | `graphify_status` | Reports graph presence, CLI availability/version, and Git-based staleness |
-| `graphify_query` | BFS subgraph around concepts matching a natural-language question |
+| `graphify_query` | Subgraph around concepts matching a question (BFS default, DFS for path tracing) with vocabulary-expansion guidance |
 | `graphify_path` | Shortest path between two nodes (fuzzy match) |
 | `graphify_explain` | Plain-language explanation of one node and its neighbors |
 | `graphify_update` | Incrementally re-extract changed files (AST-only, no LLM cost) |
@@ -130,12 +130,15 @@ All configuration via environment variables — no config files:
 | `GRAPHIFY_BUDGET` | `2000` | Default token cap for `graphify_query` results |
 | `GRAPHIFY_STALE_COMMITS` | `1` | Commits newer than graph before staleness notification |
 | `GRAPHIFY_MAX_OUTPUT` | `1048576` (1 MiB) | Max bytes from CLI stdout+stderr before truncation |
+| `GRAPHIFY_BACKEND` | unset | Default semantic backend for `graphify_build` (gemini\|kimi\|claude\|openai\|deepseek\|ollama) |
 
 ## Graph-first behavior and lifecycle
 
 When `graphify-out/graph.json` exists, the extension adds persistent Pi system guidance: for codebase and architecture questions, use `graphify_query`, `graphify_path`, or `graphify_explain` before `grep`, `find`, broad raw reads, or other file searches. Use the graph and `graphify-out/wiki/` before reading broad reports such as `GRAPH_REPORT.md`. After code edits, run `graphify_update` before relying on graph answers. If the graph cannot answer a focused question, inspect the smallest relevant source files.
 
-No graph-first guidance is injected when the graph is absent. `graphify_build` and `graphify_status` remain available so the agent can create or diagnose one.
+At session start it also injects a bounded snapshot (≤ 3000 chars, report first 2000 + wiki first 1000) of `graphify-out/GRAPH_REPORT.md` — including its **Suggested Questions** section when the report has one — and `graphify-out/wiki/index.md` into the system prompt, so the agent can answer natural-language questions about the codebase. The `graphify_query` tool guidance teaches the agent to expand natural-language questions into the graph's own token vocabulary (up to 12 tokens from node labels, never invented) when lexical matching returns no nodes, and to fall back to `graphify_explain`/`graphify_path` with symbol-level names.
+
+No graph-first guidance is injected when the graph is absent. `graphify_build` and `graphify_status` remain available so the agent can create or diagnose one. When the CLI is present but older than `0.9.53` (missing truncation, `at=` location, and verb-handling query fixes), session start shows a one-line upgrade warning.
 
 ```
 session_start
@@ -143,6 +146,8 @@ session_start
   ├─ graphify-out/graph.json exists?
   │   ├─ yes → register query/path/explain/update + guidance + check staleness
   │   └─ no  → no graph guidance or graph tools
+  ├─ before_agent_start → inject GRAPH_REPORT.md + wiki snippets (≤ 3000 chars)
+  ├─ CLI version below 0.9.53? → one-line upgrade warning
   ├─ graph + CLI available + Git repo?
   │   ├─ graphify hook status
   │   └─ graphify hook install only when upstream status shows the integration is incomplete
