@@ -43,7 +43,7 @@
   <rect x="162" y="175" width="120" height="28" rx="14" fill="#1f6feb" opacity="0.9"/>
   <text x="222" y="194" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" text-anchor="middle">pi-extension</text>
   <rect x="294" y="175" width="140" height="28" rx="14" fill="#30363d" opacity="0.9"/>
-  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">arquivo único</text>
+  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">modular</text>
   <!-- stat -->
   <rect x="60" y="220" width="260" height="36" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <text x="76" y="244" fill="#3fb950" font-family="SFMono-Regular,Consolas,Liberation Mono,Menlo,monospace" font-size="15" font-weight="600">83,2%</text>
@@ -64,7 +64,7 @@
 
 | Ferramenta | Função |
 |-----------|--------|
-| `graphify_build` | Executa o fluxo upstream `graphify .` (ou um caminho de projeto fornecido); `mode` standard\|deep, `backend` semântico opcional |
+| `graphify_build` | Executa o fluxo upstream `graphify .` (ou um caminho de projeto fornecido); `mode` standard\|deep e `backend` semântico opcionais, com estatísticas da compilação nos detalhes da ferramenta |
 | `graphify_status` | Informa a presença do grafo, disponibilidade/versão da CLI e obsolescência via Git |
 | `graphify_query` | Subgrafo ao redor de conceitos que correspondem a uma pergunta (BFS padrão, DFS para rastrear caminhos) com orientação de expansão de vocabulário |
 | `graphify_path` | Caminho mais curto entre dois nós (correspondência aproximada) |
@@ -131,7 +131,7 @@ Toda configuração via variáveis de ambiente — sem arquivos de configuraçã
 
 Quando `graphify-out/graph.json` existe, a extensão adiciona orientação persistente ao prompt do Pi: para perguntas sobre código ou arquitetura, use `graphify_query`, `graphify_path` ou `graphify_explain` antes de `grep`, `find`, leituras brutas amplas ou outras buscas em arquivos. Use o grafo e `graphify-out/wiki/` antes de ler relatórios amplos como `GRAPH_REPORT.md`. Depois de editar código, execute `graphify_update` antes de confiar nas respostas do grafo. Se o grafo não responder a uma pergunta focada, leia os menores arquivos-fonte relevantes.
 
-No início da sessão ela também injeta um recorte limitado (≤ 3000 chars, relatório primeiros 2000 + wiki primeiros 1000) de `graphify-out/GRAPH_REPORT.md` — incluindo a seção **Suggested Questions** quando o relatório tem uma — e `graphify-out/wiki/index.md` no prompt do sistema, para que o agente responda perguntas em linguagem natural sobre o código. A orientação da ferramenta `graphify_query` ensina o agente a expandir perguntas em linguagem natural para o vocabulário de tokens do próprio grafo (até 12 tokens retirados dos rótulos dos nós, nunca inventados) quando a correspondência lexical não encontra nós, e a recorrer ao `graphify_explain`/`graphify_path` com nomes em nível de símbolo.
+Quando qualquer arquivo está presente, o início da sessão também injeta um recorte limitado (≤ 3000 chars; até 2000 do relatório + até 1000 da wiki) de `graphify-out/GRAPH_REPORT.md` — incluindo a seção **Suggested Questions** quando o relatório tem uma — e `graphify-out/wiki/index.md` no prompt do sistema, para que o agente responda perguntas em linguagem natural sobre o código. A orientação da ferramenta `graphify_query` ensina o agente a expandir perguntas em linguagem natural para o vocabulário de tokens do próprio grafo (até 12 tokens retirados dos rótulos dos nós, nunca inventados) quando a correspondência lexical não encontra nós, e a recorrer ao `graphify_explain`/`graphify_path` com nomes em nível de símbolo.
 
 Nenhuma orientação graph-first é injetada quando o grafo está ausente. `graphify_build` e `graphify_status` continuam disponíveis para criá-lo ou diagnosticá-lo. Quando a CLI está presente mas é anterior à `0.9.53` (faltam correções de consulta de truncamento, localização `at=` e tratamento de verbos), o início da sessão mostra um aviso de upgrade de uma linha.
 
@@ -163,7 +163,7 @@ graphify hook uninstall
 
 Como o graphify-pi reconcilia automaticamente, a remoção é intencional apenas até a próxima sessão do Pi com um grafo e uma CLI disponível. Se a configuração falhar, o Pi informa a falha; se a CLI estiver ausente, informa `graphify-pi requires graphify CLI. Install with: uv tool install graphifyy`.
 
-A ferramenta `graphify_build` usa timeout de 5 minutos para extração semântica com `--mode deep`; as ferramentas interativas (`query`/`path`/`explain`/`status`/`update`) usam 60s e captura de saída limitada. Nenhuma lógica de extração ou hooks Git é reimplementada — cada operação delega à CLI.
+A ferramenta `graphify_build` usa timeout de 5 minutos para as compilações, inclusive no modo standard; a extração semântica deep precisa desse limite maior. As ferramentas interativas (`query`/`path`/`explain`/`status`/`update`) usam 60s e captura de saída limitada. Nenhuma lógica de extração ou hooks Git é reimplementada — cada operação delega à CLI.
 
 ## Resultados do piloto
 
