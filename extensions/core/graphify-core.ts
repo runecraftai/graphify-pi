@@ -74,6 +74,14 @@ export function readSnippet(path: string, maxChars: number): string | undefined 
 	}
 }
 
+export function readFullText(path: string): string | undefined {
+	try {
+		return readFileSync(path, "utf8");
+	} catch {
+		return undefined;
+	}
+}
+
 /** Extract a "Suggested Questions" section (up to the next heading) from a GRAPH_REPORT.md body. */
 export function extractSuggestedQuestions(
 	report: string,

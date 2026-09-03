@@ -21,6 +21,7 @@ import {
 	graphFirstGuidance,
 	parseCliVersion,
 	queryArgs,
+	readFullText,
 	readGraphStats,
 	readSnippet,
 	versionBelow,
@@ -304,6 +305,20 @@ test("readSnippet clips long files and returns undefined for missing ones", () =
 		assert.ok(snippet?.endsWith("…"));
 		assert.equal(snippet?.length, 101);
 		assert.equal(readSnippet(join(dir, "missing.md"), 100), undefined);
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("full report reads preserve suggested questions beyond the snippet limit", () => {
+	const dir = mkdtempSync(join(tmpdir(), "graphify-pi-"));
+	try {
+		const path = join(dir, "report.md");
+		writeFileSync(path, "a".repeat(2500) + "\n## Suggested Questions\n- **Q1?**");
+		assert.equal(readSnippet(path, 2000)?.includes("Q1"), false);
+		const report = readFullText(path);
+		assert.ok(report?.includes("Q1"));
+		assert.ok(buildSessionInjection(true, report)?.includes("Q1"));
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}

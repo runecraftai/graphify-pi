@@ -16,12 +16,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import {
 	CLI_BUILD_TIMEOUT_MS,
-	GRAPH_REPORT_CHARS,
 	GRAPH_WIKI_CHARS,
 	MIN_CLI_VERSION,
 	buildGraphArgs,
 	buildSessionInjection,
 	queryArgs,
+	readFullText,
 	readGraphStats,
 	readSnippet,
 	utf8Prefix,
@@ -308,14 +308,20 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 	let baseToolsRegistered = false;
 	let graphToolsRegistered = false;
 
-	const cliOutput = (args: string[], cwd: string, timeoutMs = CLI_TIMEOUT_MS): string => {
+	const runCli = (args: string[], cwd: string, timeoutMs = CLI_TIMEOUT_MS) => {
 		const result = runCommand(bin, args, cwd, maxOutputBytes, timeoutMs);
 		const output = formatCommandResult(result, `${bin} ${args.join(" ")}`, maxOutputBytes);
-		if (result.error === "ENOENT") {
-			return truncateOutput(`${CLI_INSTALL_MESSAGE}\n${output}`, maxOutputBytes);
-		}
-		return output;
+		return {
+			result,
+			output:
+				result.error === "ENOENT"
+					? truncateOutput(`${CLI_INSTALL_MESSAGE}\n${output}`, maxOutputBytes)
+					: output,
+		};
 	};
+
+	const cliOutput = (args: string[], cwd: string, timeoutMs = CLI_TIMEOUT_MS): string =>
+		runCli(args, cwd, timeoutMs).output;
 
 	function registerBaseTools(): void {
 		if (baseToolsRegistered) return;
@@ -352,15 +358,16 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 				const path = params.path ?? ".";
 				const backend = params.backend ?? process.env.GRAPHIFY_BACKEND;
 				const startedAt = Date.now();
-				const output = cliOutput(
+				const { result, output } = runCli(
 					buildGraphArgs(path, { mode: params.mode, backend }),
 					ctx.cwd,
 					CLI_BUILD_TIMEOUT_MS,
 				);
 				const buildMs = Date.now() - startedAt;
-				const stats = readGraphStats(
-					join(resolve(ctx.cwd, path), "graphify-out", "graph.json"),
-				);
+				const stats =
+					result.code === 0
+						? readGraphStats(join(resolve(ctx.cwd, path), "graphify-out", "graph.json"))
+						: undefined;
 				const details: Record<string, unknown> = {
 					path,
 					mode: params.mode ?? "standard",
@@ -555,7 +562,7 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 	pi.on("before_agent_start", (event, ctx) => {
 		const injection = buildSessionInjection(
 			hasGraph(ctx.cwd),
-			readSnippet(join(ctx.cwd, "graphify-out", "GRAPH_REPORT.md"), GRAPH_REPORT_CHARS),
+			readFullText(join(ctx.cwd, "graphify-out", "GRAPH_REPORT.md")),
 			readSnippet(join(ctx.cwd, "graphify-out", "wiki", "index.md"), GRAPH_WIKI_CHARS),
 		);
 		if (!injection) return;
