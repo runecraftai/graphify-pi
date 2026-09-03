@@ -12,4 +12,5 @@ Prefer rewriting or pruning existing entries over appending new ones.
 When updating this file, preserve this bar for all agents and keep entries concise.
 
 - Pi integration and lifecycle behavior: `extensions/graphify.ts`; upstream Graphify owns extraction, output formats, and Git hook implementation.
+- Natural-language query compensation (vocab-expansion guidance, GRAPH_REPORT/wiki injection, CLI version floor 0.9.53, DFS mode): `extensions/graphify.ts` + pure helpers in `extensions/core/graphify-core.ts`.
 - User-facing setup, upstream `graphify pi install` relationship, and hook cleanup: `README.md` and `README.pt-BR.md`.

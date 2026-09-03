@@ -8,21 +8,29 @@
 //   GRAPHIFY_BUDGET         — default query token cap (default 2000)
 //   GRAPHIFY_STALE_COMMITS  — drift threshold before notifying (default 1)
 //   GRAPHIFY_MAX_OUTPUT     — max bytes from CLI stdout+stderr (default 1 MiB)
+//   GRAPHIFY_BACKEND        — default semantic backend for graphify_build
 import { execFileSync } from "node:child_process";
 import { statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import {
+	CLI_BUILD_TIMEOUT_MS,
+	GRAPH_WIKI_CHARS,
+	MIN_CLI_VERSION,
+	buildGraphArgs,
+	buildSessionInjection,
+	queryArgs,
+	readFullText,
+	readGraphStats,
+	readSnippet,
+	utf8Prefix,
+	versionBelow,
+} from "./core/graphify-core.js";
 
 const CLI_TIMEOUT_MS = 60_000;
 const MIN_EXEC_BUFFER_BYTES = 1024;
 const TRUNCATION_MARKER = "\n[output truncated at limit]";
-
-function utf8Prefix(text: string, limit: number): string {
-	let prefix = Buffer.from(text, "utf8").subarray(0, limit).toString("utf8");
-	while (Buffer.byteLength(prefix, "utf8") > limit) prefix = prefix.slice(0, -1);
-	return prefix;
-}
 
 export const DEFAULT_MAX_OUTPUT = 1 * 1024 * 1024; // 1 MiB
 export const CLI_INSTALL_MESSAGE =
@@ -70,12 +78,13 @@ export function runCommand(
 	args: string[],
 	cwd: string,
 	maxOutputBytes = DEFAULT_MAX_OUTPUT,
+	timeoutMs = CLI_TIMEOUT_MS,
 ): CommandResult {
 	try {
 		const result = execFileSync(command, args, {
 			cwd,
 			encoding: "utf8",
-			timeout: CLI_TIMEOUT_MS,
+			timeout: timeoutMs,
 			stdio: ["pipe", "pipe", "pipe"],
 			maxBuffer: Math.max(maxOutputBytes * 2, MIN_EXEC_BUFFER_BYTES),
 		});
@@ -274,17 +283,6 @@ export function reconcileGitHooks(
 	return { attempted: true, installed: true };
 }
 
-export function graphFirstGuidance(graphPresent: boolean): string | undefined {
-	if (!graphPresent) return undefined;
-	return `
-Graph-first codebase guidance: graphify-out/graph.json is present.
-- For codebase or architecture questions, use graphify_query, graphify_path, or graphify_explain before grep, find, broad raw reads, or other file searches.
-- Use the graph and graphify-out/wiki/ before reading broad reports such as GRAPH_REPORT.md.
-- After code edits, run graphify_update before relying on graph answers.
-- If the graph does not answer the focused question, then inspect the smallest relevant source files.
-`;
-}
-
 export default function graphifyExtension(pi: ExtensionAPI) {
 	const bin = process.env.GRAPHIFY_BIN || "graphify";
 	const defaultBudget =
@@ -310,14 +308,19 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 	let baseToolsRegistered = false;
 	let graphToolsRegistered = false;
 
-	const cliOutput = (args: string[], cwd: string): string => {
-		const result = runner(bin, args, cwd);
+	const runCli = (args: string[], cwd: string, timeoutMs = CLI_TIMEOUT_MS) => {
+		const result = runCommand(bin, args, cwd, maxOutputBytes, timeoutMs);
 		const output = formatCommandResult(result, `${bin} ${args.join(" ")}`, maxOutputBytes);
-		if (result.error === "ENOENT") {
-			return truncateOutput(`${CLI_INSTALL_MESSAGE}\n${output}`, maxOutputBytes);
-		}
-		return output;
+		return {
+			result,
+			output:
+				result.error === "ENOENT"
+					? truncateOutput(`${CLI_INSTALL_MESSAGE}\n${output}`, maxOutputBytes)
+					: output,
+		};
 	};
+
+	const cliOutput = (args: string[], cwd: string, timeoutMs = CLI_TIMEOUT_MS): string => runCli(args, cwd, timeoutMs).output;
 
 	function registerBaseTools(): void {
 		if (baseToolsRegistered) return;
@@ -327,21 +330,39 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 			name: "graphify_build",
 			label: "Graphify Build",
 			description:
-				"Build or rebuild this project's knowledge graph using the upstream graphify . flow.",
+				"Build or rebuild this project's knowledge graph using the upstream graphify extract flow; supports standard/deep mode and an optional semantic backend.",
 			promptSnippet: "Build the codebase knowledge graph with graphify",
+			promptGuidelines: [
+				"Run graphify_build before graphify_query/graphify_path/graphify_explain in repos without a graph; use mode \"deep\" for richer inferred relationships on doc-heavy corpora (needs a semantic backend).",
+			],
 			parameters: Type.Object({
 				path: Type.Optional(
 					Type.String({
 						description: 'Project path passed to graphify (default ".")',
 					}),
 				),
+				mode: Type.Optional(
+					Type.Union([Type.Literal("standard"), Type.Literal("deep")], {
+						description: "Extraction mode: deep enables richer INFERRED-edge semantic extraction",
+					}),
+				),
+				backend: Type.Optional(
+					Type.String({
+						description:
+							"Semantic backend (gemini|kimi|claude|openai|deepseek|ollama); defaults to GRAPHIFY_BACKEND env",
+					}),
+				),
 			}),
 			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 				const path = params.path ?? ".";
-				return {
-					content: [{ type: "text", text: cliOutput([path], ctx.cwd) }],
-					details: {},
-				};
+				const backend = params.backend ?? process.env.GRAPHIFY_BACKEND;
+				const startedAt = Date.now();
+				const { result, output } = runCli(buildGraphArgs(path, { mode: params.mode, backend }), ctx.cwd, CLI_BUILD_TIMEOUT_MS);
+				const buildMs = Date.now() - startedAt;
+				const stats = result.code === 0 ? readGraphStats(join(resolve(ctx.cwd, path), "graphify-out", "graph.json")) : undefined;
+				const details: Record<string, unknown> = { path, mode: params.mode ?? "standard", buildMs, ...(backend ? { backend } : {}), ...(stats ?? {}) };
+				const summary = stats ? `Graph build complete: ${stats.nodeCount} nodes, ${stats.edgeCount} edges, ${stats.fileCount} files, ${stats.graphSizeBytes} bytes in ${buildMs} ms.` : undefined;
+				return { content: [{ type: "text", text: summary ? `${summary}\n${output}` : output }], details };
 			},
 		});
 
@@ -392,15 +413,23 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 			name: "graphify_query",
 			label: "Graphify Query",
 			description:
-				"Query this codebase's knowledge graph (BFS subgraph around concepts matching the question). Cheaper and more focused than grepping raw files for structural questions.",
+				"Query this codebase's knowledge graph (subgraph around concepts matching the question; BFS default, DFS for path tracing). Cheaper and more focused than grepping raw files for structural questions.",
 			promptSnippet: "Query the codebase knowledge graph for a question",
 			promptGuidelines: [
 				"Use graphify_query when answering questions about this codebase's structure or how components relate, before falling back to grep/read.",
+				"graphify query matches node labels by case-folded substring/prefix only — no synonyms, no stemming, no cross-language match. When it returns \"No matching nodes found\" or the question's vocabulary does not match node labels, expand the query against the graph's own vocabulary: open graphify-out/graph.json, pick up to 12 tokens from node labels that match the question's intent, and re-query with those tokens joined by spaces instead of the raw question.",
+				"Never invent tokens; if nothing in the graph vocabulary matches, say so honestly and fall back to graphify_explain / graphify_path with symbol-level names.",
+				"Mode: bfs (default) explores broad context — use for \"what is X connected to?\". dfs traces a specific chain — use for \"how does X reach Y?\".",
 			],
 			parameters: Type.Object({
 				question: Type.String({
 					description: "Natural-language question about the codebase graph",
 				}),
+				mode: Type.Optional(
+					Type.Union([Type.Literal("bfs"), Type.Literal("dfs")], {
+						description: "Traversal mode: bfs (default) or dfs (path tracing)",
+					}),
+				),
 				budget: Type.Optional(
 					Type.Number({
 						description: `Token cap for the returned subgraph (default ${defaultBudget})`,
@@ -413,15 +442,20 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 				),
 			}),
 			async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-				const args = [
-					"query",
-					params.question,
-					"--budget",
-					String(params.budget ?? defaultBudget),
-				];
-				for (const filter of params.context_filter ?? []) args.push("--context", filter);
+				const output = cliOutput(
+					queryArgs(
+						params.question,
+						{
+							budget: params.budget,
+							mode: params.mode,
+							contextFilter: params.context_filter,
+						},
+						defaultBudget,
+					),
+					ctx.cwd,
+				);
 				return {
-					content: [{ type: "text", text: cliOutput(args, ctx.cwd) }],
+					content: [{ type: "text", text: output }],
 					details: {},
 				};
 			},
@@ -498,13 +532,24 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 	}
 
 	pi.on("before_agent_start", (event, ctx) => {
-		const guidance = graphFirstGuidance(hasGraph(ctx.cwd));
-		if (!guidance) return;
-		return { systemPrompt: event.systemPrompt + guidance };
+		const injection = buildSessionInjection(
+			hasGraph(ctx.cwd),
+			readFullText(join(ctx.cwd, "graphify-out", "GRAPH_REPORT.md")),
+			readSnippet(join(ctx.cwd, "graphify-out", "wiki", "index.md"), GRAPH_WIKI_CHARS),
+		);
+		if (!injection) return;
+		return { systemPrompt: event.systemPrompt + "\n\n" + injection };
 	});
 
 	pi.on("session_start", (_event, ctx) => {
 		registerBaseTools();
+		const cli = getCliInfo(bin, ctx.cwd, runner);
+		if (cli.available && versionBelow(cli.version, MIN_CLI_VERSION)) {
+			ctx.ui.notify(
+				`[graphify] CLI ${cli.version} is below ${MIN_CLI_VERSION} — query fixes (truncation, at= locations, verb handling) need an upgrade: uv tool install graphifyy`,
+				"warning",
+			);
+		}
 		const mtime = graphMtimeMs(ctx.cwd);
 		if (mtime === undefined) return;
 
@@ -520,7 +565,6 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 			);
 		}
 
-		const cli = getCliInfo(bin, ctx.cwd, runner);
 		if (!cli.available) {
 			ctx.ui.notify(CLI_INSTALL_MESSAGE, "error");
 			return;

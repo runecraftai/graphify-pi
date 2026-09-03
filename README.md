@@ -48,7 +48,7 @@
   <rect x="162" y="175" width="120" height="28" rx="14" fill="#1f6feb" opacity="0.9"/>
   <text x="222" y="194" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="600" text-anchor="middle">pi-extension</text>
   <rect x="294" y="175" width="140" height="28" rx="14" fill="#30363d" opacity="0.9"/>
-  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">single-file</text>
+  <text x="364" y="194" fill="#8b949e" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif" font-size="13" font-weight="500" text-anchor="middle">modular</text>
   <!-- stat callout -->
   <rect x="60" y="220" width="260" height="36" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
   <text x="76" y="244" fill="#3fb950" font-family="SFMono-Regular,Consolas,Liberation Mono,Menlo,monospace" font-size="15" font-weight="600">83.2%</text>
@@ -69,9 +69,9 @@
 
 | Tool | What it does |
 |------|-------------|
-| `graphify_build` | Runs the upstream `graphify .` build flow (or a supplied project path) |
+| `graphify_build` | Runs the upstream `graphify .` build flow (or a supplied project path); optional `mode` standard\|deep and semantic `backend`, with build statistics in tool details |
 | `graphify_status` | Reports graph presence, CLI availability/version, and Git-based staleness |
-| `graphify_query` | BFS subgraph around concepts matching a natural-language question |
+| `graphify_query` | Subgraph around concepts matching a question (BFS default, DFS for path tracing) with vocabulary-expansion guidance |
 | `graphify_path` | Shortest path between two nodes (fuzzy match) |
 | `graphify_explain` | Plain-language explanation of one node and its neighbors |
 | `graphify_update` | Incrementally re-extract changed files (AST-only, no LLM cost) |
@@ -130,12 +130,15 @@ All configuration via environment variables — no config files:
 | `GRAPHIFY_BUDGET` | `2000` | Default token cap for `graphify_query` results |
 | `GRAPHIFY_STALE_COMMITS` | `1` | Commits newer than graph before staleness notification |
 | `GRAPHIFY_MAX_OUTPUT` | `1048576` (1 MiB) | Max bytes from CLI stdout+stderr before truncation |
+| `GRAPHIFY_BACKEND` | unset | Default semantic backend for `graphify_build` (gemini\|kimi\|claude\|openai\|deepseek\|ollama) |
 
 ## Graph-first behavior and lifecycle
 
 When `graphify-out/graph.json` exists, the extension adds persistent Pi system guidance: for codebase and architecture questions, use `graphify_query`, `graphify_path`, or `graphify_explain` before `grep`, `find`, broad raw reads, or other file searches. Use the graph and `graphify-out/wiki/` before reading broad reports such as `GRAPH_REPORT.md`. After code edits, run `graphify_update` before relying on graph answers. If the graph cannot answer a focused question, inspect the smallest relevant source files.
 
-No graph-first guidance is injected when the graph is absent. `graphify_build` and `graphify_status` remain available so the agent can create or diagnose one.
+When either file is present, the session start also injects a bounded snapshot (≤ 3000 chars; up to 2000 from the report + up to 1000 from the wiki) of `graphify-out/GRAPH_REPORT.md` — including its **Suggested Questions** section when the report has one — and `graphify-out/wiki/index.md` into the system prompt, so the agent can answer natural-language questions about the codebase. The `graphify_query` tool guidance teaches the agent to expand natural-language questions into the graph's own token vocabulary (up to 12 tokens from node labels, never invented) when lexical matching returns no nodes, and to fall back to `graphify_explain`/`graphify_path` with symbol-level names.
+
+No graph-first guidance is injected when the graph is absent. `graphify_build` and `graphify_status` remain available so the agent can create or diagnose one. When the CLI is present but older than `0.9.53` (missing truncation, `at=` location, and verb-handling query fixes), session start shows a one-line upgrade warning.
 
 ```
 session_start
@@ -143,6 +146,8 @@ session_start
   ├─ graphify-out/graph.json exists?
   │   ├─ yes → register query/path/explain/update + guidance + check staleness
   │   └─ no  → no graph guidance or graph tools
+  ├─ before_agent_start → inject GRAPH_REPORT.md + wiki snippets (≤ 3000 chars)
+  ├─ CLI version below 0.9.53? → one-line upgrade warning
   ├─ graph + CLI available + Git repo?
   │   ├─ graphify hook status
   │   └─ graphify hook install only when upstream status shows the integration is incomplete
@@ -163,7 +168,7 @@ graphify hook uninstall
 
 Because graphify-pi reconciles automatically, an uninstall is intentional only until the next Pi session with a graph and an available CLI. If setup fails, Pi reports the failure; if the CLI is missing it reports `graphify-pi requires graphify CLI. Install with: uv tool install graphifyy`.
 
-Tools shell out to the upstream `graphify` CLI with a 60s timeout and bounded output capture. No extraction or Git hook logic is reimplemented — every operation delegates to the CLI.
+The `graphify_build` tool uses a 5-minute timeout for builds, including standard mode; deep semantic extraction needs the longer limit. Interactive tools (`query`/`path`/`explain`/`status`/`update`) use 60s and bounded output capture. No extraction or Git hook logic is reimplemented — every operation delegates to the CLI.
 
 ## Pilot results
 
