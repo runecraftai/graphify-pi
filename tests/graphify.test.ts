@@ -253,14 +253,16 @@ test("session injection includes guidance, report, and wiki within the char cap"
 });
 
 test("session injection bounds report, wiki, and suggested questions", () => {
-	const report = "y".repeat(2500) + "\n## Suggested Questions\n- **Q1?**\n- **Q2?**";
+	const report = "y".repeat(2500) + "\n## Suggested Questions\n" + "- **Q1?**\n".repeat(100);
 	const wiki = "z".repeat(5000);
-	const injection = buildSessionInjection(true, report, wiki);
+	const injection = buildSessionInjection(false, report, wiki);
 	assert.ok(Buffer.byteLength(injection ?? "", "utf8") <= GRAPH_CONTEXT_MAX_CHARS);
 	assert.ok(injection?.includes("Suggested questions"));
 	assert.ok(injection?.includes("Q1"));
 	assert.ok(injection?.includes("graphify-out/wiki/index.md"));
 	assert.ok(injection?.includes("…"));
+	assert.ok(injection?.includes("</graphify-reference report>"));
+	assert.ok(injection?.includes("</graphify-reference wiki>"));
 });
 
 test("session injection appends questions when only their heading is clipped", () => {

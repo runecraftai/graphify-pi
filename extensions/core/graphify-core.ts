@@ -177,7 +177,10 @@ export function buildSessionInjection(
 				suggestedEnd === undefined
 					? undefined
 					: Buffer.byteLength(report.slice(0, suggestedEnd), "utf8");
-			if (suggestedEndBytes !== undefined && suggestedEndBytes > bodyBudget) {
+			const effectiveBodyBytes =
+				Buffer.byteLength(report, "utf8") > bodyBudget ? Math.max(0, bodyBudget - 3) : bodyBudget;
+			const questionsLabel = "\nSuggested questions:\n";
+			if (suggestedEndBytes !== undefined && suggestedEndBytes > effectiveBodyBytes) {
 				const questionsBudget = Math.max(
 					0,
 					Math.min(
@@ -186,12 +189,13 @@ export function buildSessionInjection(
 							separatorBytes -
 							Buffer.byteLength(block, "utf8") -
 							Buffer.byteLength(footer, "utf8") -
+							Buffer.byteLength(questionsLabel, "utf8") -
 							3,
 					),
 				);
 				const extracted = extractSuggestedQuestions(report, 400);
 				const questions = extracted ? clipBytes(extracted, questionsBudget) : undefined;
-				if (questions) block += `\nSuggested questions:\n${neutralizeBoundaryTokens(questions)}`;
+				if (questions) block += `${questionsLabel}${neutralizeBoundaryTokens(questions)}`;
 			}
 			block += footer;
 			parts.push(block);
