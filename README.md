@@ -168,7 +168,7 @@ graphify hook uninstall
 
 Because graphify-pi reconciles automatically, an uninstall is intentional only until the next Pi session with a graph and an available CLI. If setup fails, Pi reports the failure; if the CLI is missing it reports `graphify-pi requires graphify CLI. Install with: uv tool install graphifyy`.
 
-Tools shell out to the upstream `graphify` CLI with a 60s timeout and bounded output capture. No extraction or Git hook logic is reimplemented — every operation delegates to the CLI.
+The `graphify_build` tool uses a 5-minute timeout for `--mode deep` semantic extraction; interactive tools (`query`/`path`/`explain`/`status`/`update`) use 60s and bounded output capture. No extraction or Git hook logic is reimplemented — every operation delegates to the CLI.
 
 ## Pilot results
 

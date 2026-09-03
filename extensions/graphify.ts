@@ -320,8 +320,7 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 		};
 	};
 
-	const cliOutput = (args: string[], cwd: string, timeoutMs = CLI_TIMEOUT_MS): string =>
-		runCli(args, cwd, timeoutMs).output;
+	const cliOutput = (args: string[], cwd: string, timeoutMs = CLI_TIMEOUT_MS): string => runCli(args, cwd, timeoutMs).output;
 
 	function registerBaseTools(): void {
 		if (baseToolsRegistered) return;
@@ -358,39 +357,12 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 				const path = params.path ?? ".";
 				const backend = params.backend ?? process.env.GRAPHIFY_BACKEND;
 				const startedAt = Date.now();
-				const { result, output } = runCli(
-					buildGraphArgs(path, { mode: params.mode, backend }),
-					ctx.cwd,
-					CLI_BUILD_TIMEOUT_MS,
-				);
+				const { result, output } = runCli(buildGraphArgs(path, { mode: params.mode, backend }), ctx.cwd, CLI_BUILD_TIMEOUT_MS);
 				const buildMs = Date.now() - startedAt;
-				const stats =
-					result.code === 0
-						? readGraphStats(join(resolve(ctx.cwd, path), "graphify-out", "graph.json"))
-						: undefined;
-				const details: Record<string, unknown> = {
-					path,
-					mode: params.mode ?? "standard",
-					buildMs,
-					...(backend ? { backend } : {}),
-					...(stats
-						? {
-								fileCount: stats.fileCount,
-								nodeCount: stats.nodeCount,
-								edgeCount: stats.edgeCount,
-								graphSizeBytes: stats.graphSizeBytes,
-						  }
-						: {}),
-				};
-				const summary = stats
-					? `Graph build complete: ${stats.nodeCount} nodes, ${stats.edgeCount} edges, ${stats.fileCount} files, ${stats.graphSizeBytes} bytes in ${buildMs} ms.`
-					: undefined;
-				return {
-					content: [
-						{ type: "text", text: summary ? `${summary}\n${output}` : output },
-					],
-					details,
-				};
+				const stats = result.code === 0 ? readGraphStats(join(resolve(ctx.cwd, path), "graphify-out", "graph.json")) : undefined;
+				const details: Record<string, unknown> = { path, mode: params.mode ?? "standard", buildMs, ...(backend ? { backend } : {}), ...(stats ?? {}) };
+				const summary = stats ? `Graph build complete: ${stats.nodeCount} nodes, ${stats.edgeCount} edges, ${stats.fileCount} files, ${stats.graphSizeBytes} bytes in ${buildMs} ms.` : undefined;
+				return { content: [{ type: "text", text: summary ? `${summary}\n${output}` : output }], details };
 			},
 		});
 
@@ -566,7 +538,7 @@ export default function graphifyExtension(pi: ExtensionAPI) {
 			readSnippet(join(ctx.cwd, "graphify-out", "wiki", "index.md"), GRAPH_WIKI_CHARS),
 		);
 		if (!injection) return;
-		return { systemPrompt: event.systemPrompt + injection };
+		return { systemPrompt: event.systemPrompt + "\n\n" + injection };
 	});
 
 	pi.on("session_start", (_event, ctx) => {
