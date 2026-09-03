@@ -265,6 +265,13 @@ test("session injection appends questions when only their heading is clipped", (
 	assert.ok(injection?.includes("Q1"));
 });
 
+test("session injection ignores repeated question text outside the section", () => {
+	const question = "- **Q1?**";
+	const report = question + "\n" + "x".repeat(1970) + "\n## Suggested Questions\n" + question;
+	const injection = buildSessionInjection(true, report);
+	assert.equal(injection?.match(/Q1/g)?.length, 2);
+});
+
 test("session injection omits absent inputs and stays honest without a graph", () => {
 	assert.equal(buildSessionInjection(false, undefined, undefined), undefined);
 	const wikiOnly = buildSessionInjection(false, undefined, "# Wiki");

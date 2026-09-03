@@ -100,6 +100,21 @@ export function extractSuggestedQuestions(
 	return clip(body.join("\n"), maxChars);
 }
 
+function suggestedQuestionsEndOffset(report: string): number | undefined {
+	const lines = report.split(/\r?\n/);
+	const heading = lines.findIndex(
+		(line) => /^#{1,6}\s+/i.test(line) && /suggest/i.test(line) && /question/i.test(line),
+	);
+	if (heading === -1) return undefined;
+	let offset = 0;
+	for (let index = 0; index < lines.length; index++) {
+		if (index > heading && /^#{1,6}\s+/.test(lines[index])) return offset;
+		offset += lines[index].length;
+		if (index < lines.length - 1) offset += report[offset] === "\r" ? 2 : 1;
+	}
+	return report.length;
+}
+
 /**
  * Build the bounded per-session context injected into the system prompt:
  * graph-first guidance, a GRAPH_REPORT.md snippet (with suggested questions
@@ -136,10 +151,8 @@ export function buildSessionInjection(
 		const body = clip(report, bodyBudget);
 		if (body) {
 			let block = header + body;
-			const suggested = extractSuggestedQuestions(report, 400);
-			const firstContent = suggested?.split(/\r?\n/).find((line) => line.trim());
-			const contentMarker = firstContent?.replace(/…$/, "");
-			if (suggested && contentMarker && !body.includes(contentMarker)) {
+			const suggestedEnd = suggestedQuestionsEndOffset(report);
+			if (suggestedEnd !== undefined && suggestedEnd > bodyBudget) {
 				const questionsBudget = Math.max(
 					0,
 					Math.min(400, remaining - separatorBytes - Buffer.byteLength(block, "utf8") - 3),
